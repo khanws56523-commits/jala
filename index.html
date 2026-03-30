@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="te">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jala-Raksha | GitHub Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+
+        // IMPORTANT: Replace this with your actual Firebase Config from Firebase Console
+        const firebaseConfig = {
+            apiKey: "AIzaSyAhrEq30trk2Xzwc1zyxg998mWj-kbXrng",
+            authDomain: "jala-41dc4.firebaseapp.com",
+            projectId: "jala-41dc4",
+            storageBucket: "jala-41dc4.firebasestorage.app",
+            messagingSenderId: "360018361773",
+            appId: "1:360018361773:web:96af4d415b5d26183db524"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = "my-jala-raksha-app"; // GitHub lo custom ID use cheyali
+
+        window.db = db;
+        window.appId = appId;
+
+        async function init() {
+            try {
+                // GitHub lo simple anonymous login
+                await signInAnonymously(auth);
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        window.currentUser = user;
+                        setupListeners();
+                        showToast("Live on GitHub!");
+                        document.getElementById('connection-badge').innerHTML = `LIVE`;
+                    }
+                });
+            } catch (error) {
+                console.error(error);
+                showToast("Config Error! Check Firebase Console.");
+            }
+        }
+
+        function setupListeners() {
+            // Residents Listener
+            onSnapshot(collection(db, 'residents'), (snapshot) => {
+                const contacts = [];
+                snapshot.forEach(doc => contacts.push({ id: doc.id, ...doc.data() }));
+                document.getElementById('reg-count').innerText = contacts.length;
+                renderContactsList(contacts);
+            });
+        }
+
+        window.onload = init;
+        // ... (Remaining JS functions from original code like switchTab, render, etc.)
+    </script>
+    <!-- Add same UI styles and body from previous version here -->
+</head>
+<body>
+    <!-- (Original UI Body stays here) -->
+</body>
+</html>
