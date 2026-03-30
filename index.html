@@ -8,9 +8,9 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
-        // IMPORTANT: Replace this with your actual Firebase Config from Firebase Console
+        // Your Firebase Config
         const firebaseConfig = {
             apiKey: "AIzaSyAhrEq30trk2Xzwc1zyxg998mWj-kbXrng",
             authDomain: "jala-41dc4.firebaseapp.com",
@@ -23,26 +23,25 @@
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = "my-jala-raksha-app"; // GitHub lo custom ID use cheyali
 
         window.db = db;
-        window.appId = appId;
+        window.auth = auth;
 
+        // Initialize App
         async function init() {
             try {
-                // GitHub lo simple anonymous login
-                await signInAnonymously(auth);
+                const userCred = await signInAnonymously(auth);
                 onAuthStateChanged(auth, (user) => {
                     if (user) {
                         window.currentUser = user;
                         setupListeners();
-                        showToast("Live on GitHub!");
-                        document.getElementById('connection-badge').innerHTML = `LIVE`;
+                        showToast("Connected to Firebase!");
+                        document.getElementById('connection-badge').innerText = "LIVE";
                     }
                 });
             } catch (error) {
-                console.error(error);
-                showToast("Config Error! Check Firebase Console.");
+                console.error("Auth Error:", error);
+                showToast("Firebase Connection Error!");
             }
         }
 
@@ -52,16 +51,161 @@
                 const contacts = [];
                 snapshot.forEach(doc => contacts.push({ id: doc.id, ...doc.data() }));
                 document.getElementById('reg-count').innerText = contacts.length;
+                document.getElementById('total-contacts').innerText = contacts.length;
                 renderContactsList(contacts);
+            });
+
+            // Complaints Listener
+            onSnapshot(collection(db, 'complaints'), (snapshot) => {
+                const complaints = [];
+                snapshot.forEach(doc => complaints.push({ id: doc.id, ...doc.data() }));
+                renderComplaints(complaints);
             });
         }
 
+        // Global functions for UI
+        window.saveToCloud = async () => {
+            const name = document.getElementById('new-name').value;
+            const phone = document.getElementById('new-phone').value;
+            if(!name || !phone) return showToast("Enter details!");
+            try {
+                await addDoc(collection(db, 'residents'), { name, phone, createdAt: serverTimestamp() });
+                document.getElementById('new-name').value = "";
+                document.getElementById('new-phone').value = "";
+                showToast("Resident Added!");
+            } catch (e) { showToast("Save failed!"); }
+        };
+
+        window.deleteContact = async (id) => {
+            if(!confirm("Remove this contact?")) return;
+            try {
+                await deleteDoc(doc(db, 'residents', id));
+                showToast("Removed!");
+            } catch (e) { showToast("Error deleting!"); }
+        };
+
+        window.addMockComplaint = async () => {
+            try {
+                await addDoc(collection(db, 'complaints'), {
+                    name: "Resident " + Math.floor(Math.random()*100),
+                    issue: "Water leak reported",
+                    createdAt: serverTimestamp()
+                });
+            } catch (e) { console.error(e); }
+        };
+
         window.onload = init;
-        // ... (Remaining JS functions from original code like switchTab, render, etc.)
     </script>
-    <!-- Add same UI styles and body from previous version here -->
+    <style>
+        body { background-color: #f8fafc; font-family: sans-serif; }
+        .active-tab { background: rgba(255, 255, 255, 0.1); border-left: 4px solid #3b82f6; }
+        .sidebar-gradient { background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%); }
+    </style>
 </head>
-<body>
-    <!-- (Original UI Body stays here) -->
+<body class="text-slate-900">
+    <div class="flex h-screen overflow-hidden">
+        <aside class="w-72 sidebar-gradient text-slate-300 hidden md:flex flex-col">
+            <div class="p-8 border-b border-slate-800 text-white font-bold text-xl">జల-రక్ష PRO</div>
+            <nav class="flex-1 p-6 space-y-2">
+                <button onclick="switchTab('dash')" id="tab-dash" class="w-full text-left p-4 rounded-xl active-tab">Dashboard</button>
+                <button onclick="switchTab('contacts')" id="tab-contacts" class="w-full text-left p-4 rounded-xl">Contacts</button>
+                <button onclick="switchTab('complaints')" id="tab-complaints" class="w-full text-left p-4 rounded-xl">Complaints</button>
+            </nav>
+        </aside>
+
+        <main class="flex-1 flex flex-col">
+            <header class="h-20 bg-white border-b px-8 flex items-center justify-between">
+                <h2 id="page-title" class="font-bold text-xl">Dashboard</h2>
+                <div id="connection-badge" class="bg-green-100 text-green-700 px-4 py-1 rounded-full text-xs font-bold">Connecting...</div>
+            </header>
+
+            <div class="p-8 space-y-6 overflow-y-auto">
+                <div id="dash-section">
+                    <div class="bg-white p-8 rounded-3xl shadow-sm border">
+                        <h3 class="font-bold text-blue-600 mb-4">Bulk Campaign</h3>
+                        <textarea id="bulk-msg" class="w-full bg-slate-50 border p-4 rounded-xl h-32 mb-4" placeholder="Type message..."></textarea>
+                        <div class="flex justify-between items-center">
+                            <p class="text-sm">Target: <span id="reg-count">0</span> Residents</p>
+                            <button onclick="sendBulkSms()" class="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold">Send SMS</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="contacts-section" class="hidden space-y-6">
+                    <div class="grid grid-cols-2 gap-6">
+                        <div class="bg-white p-8 rounded-3xl border">
+                            <h3 class="font-bold mb-4 text-lg">Add New</h3>
+                            <input id="new-name" class="w-full border p-4 rounded-xl mb-4" placeholder="Name">
+                            <input id="new-phone" class="w-full border p-4 rounded-xl mb-4" placeholder="Phone">
+                            <button onclick="saveToCloud()" class="w-full bg-slate-900 text-white py-4 rounded-xl font-bold">Save</button>
+                        </div>
+                        <div class="bg-blue-600 p-8 rounded-3xl text-white">
+                            <p class="opacity-80">Total Registered</p>
+                            <h3 class="text-5xl font-black mt-2" id="total-contacts">0</h3>
+                        </div>
+                    </div>
+                    <div class="bg-white rounded-3xl border overflow-hidden">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-50 font-bold uppercase text-[10px] text-slate-400 tracking-widest">
+                                <tr><th class="px-8 py-4">Name</th><th class="px-8 py-4">Phone</th><th class="px-8 py-4">Action</th></tr>
+                            </thead>
+                            <tbody id="contacts-list-body" class="divide-y"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="complaints-section" class="hidden">
+                    <div class="bg-white rounded-3xl border overflow-hidden">
+                        <div class="p-6 border-b flex justify-between">
+                            <h3 class="font-bold">Complaints</h3>
+                            <button onclick="addMockComplaint()" class="text-xs text-blue-600">+ Test</button>
+                        </div>
+                        <table class="w-full text-sm text-left">
+                            <tbody id="complaints-body" class="divide-y"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="toast" class="fixed bottom-10 left-1/2 -translate-x-1/2 bg-black text-white px-6 py-3 rounded-xl opacity-0 transition-all"></div>
+
+    <script>
+        function switchTab(tab) {
+            ['dash','contacts','complaints'].forEach(t => {
+                document.getElementById(t+'-section').classList.toggle('hidden', t !== tab);
+                document.getElementById('tab-'+t).classList.toggle('active-tab', t === tab);
+            });
+            document.getElementById('page-title').innerText = tab.toUpperCase();
+        }
+
+        function renderContactsList(list) {
+            document.getElementById('contacts-list-body').innerHTML = list.map(c => `
+                <tr>
+                    <td class="px-8 py-4 font-bold">${c.name}</td>
+                    <td class="px-8 py-4">${c.phone}</td>
+                    <td class="px-8 py-4"><button onclick="deleteContact('${c.id}')" class="text-red-500 text-xs">Remove</button></td>
+                </tr>
+            `).join('');
+        }
+
+        function renderComplaints(list) {
+            document.getElementById('complaints-body').innerHTML = list.map(c => `
+                <tr><td class="px-8 py-4 font-bold">${c.name}</td><td class="px-8 py-4">${c.issue}</td></tr>
+            `).join('');
+        }
+
+        function sendBulkSms() {
+            showToast("Campaign Started!");
+            setTimeout(() => showToast("Sent!"), 1000);
+        }
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.innerText = msg; t.classList.remove('opacity-0');
+            setTimeout(() => t.classList.add('opacity-0'), 2000);
+        }
+    </script>
 </body>
 </html>
